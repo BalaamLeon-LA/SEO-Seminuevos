@@ -1,0 +1,16 @@
+{
+  "name": "seo-seminuevos",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test": "playwright test",
+    "test:prod": "playwright test --project=production",
+    "test:staging": "playwright test --project=staging",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "@types/node": "^25.9.3",
+    "dotenv": "^16.0.0"
+  }
+}
