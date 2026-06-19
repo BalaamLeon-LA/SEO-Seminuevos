@@ -63,30 +63,32 @@ export type SchemaExpectations = {
 /**
  * Expectativas de schema por tipo de página, según el Checklist SEO.
  *
- * Home:    WebPage + Organization/AutomotiveBusiness
- * Hub:     WebPage + Organization
- * Brand:   WebPage + BreadcrumbList + Brand
- * Model:   WebPage + BreadcrumbList
- * Details: Car/Product + Offer + campos de vehículo
+ * Home:    WebSite + Organization/AutomotiveBusiness + ItemList + FAQPage
+ * Hub:     WebSite + Organization/AutomotiveBusiness + BreadcrumbList + ItemList + FAQPage
+ * Brand:   WebSite + Organization/AutomotiveBusiness + BreadcrumbList + ItemList + FAQPage + Brand
+ * Model:   WebSite + Organization/AutomotiveBusiness + BreadcrumbList + ItemList + FAQPage + Brand + Model
+ * Details: Car/Product + Organization/AutomotiveBusiness + Brand + Model + VehicleModelDate + Price + campos de vehículo
  */
 export const schemaByPageType: Partial<Record<PageType | 'custom', SchemaExpectations>> = {
   home: {
-    required: ['WebPage', 'Itemlist', 'SiteNavigationElement', 'FAQPage'],
+    required: ['WebSite', 'ItemList', 'FAQPage'],
     anyOf: [['Organization', 'AutomotiveBusiness']],
   },
   hub: {
-    required: ['WebPage', 'Organization', 'ItemList', 'SiteNavigationElement', 'FAQPage'
-    ],
+    required: ['WebSite', 'ItemList', 'BreadcrumbList', 'FAQPage'],
+    anyOf: [['Organization', 'AutomotiveBusiness']],
   },
   brand: {
-    required: ['WebPage', 'Brand', 'BreadcrumbList', 'Itemlist', 'FAQPage'],
+    required: ['WebSite', 'Brand', 'BreadcrumbList', 'ItemList', 'FAQPage'],
+    anyOf: [['Organization', 'AutomotiveBusiness']],
   },
   model: {
-    required: ['WebPage', 'BreadcrumbList', 'Itemlist', 'Brand', 'Model', 'FAQPage'],
+    required: ['WebSite', 'BreadcrumbList', 'ItemList', 'Brand', 'Model', 'FAQPage'],
+    anyOf: [['Organization', 'AutomotiveBusiness']],
   },
   details: {
     required: ['Brand', 'Model', 'VehicleModelDate', 'Price'],
-    anyOf: [['Car', 'Product']],
+    anyOf: [['Car', 'Product'], ['Organization', 'AutomotiveBusiness']],
     fields: ['Mileage', 'PriceCurrency', 'Offer', 'Availability', 'VehicleModelDate', 'Image'],
   },
 };
