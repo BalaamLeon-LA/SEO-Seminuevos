@@ -58,13 +58,22 @@ for (const { path, type } of pagesToTest) {
     type === 'custom' ? (path.includes('/vehicle/') ? 'details' : 'categories') : type;
 
   test.describe(`[${type}] ${path}`, () => {
-    let html = '';
+    let html = '';       // HTML crudo del servidor (lo que ve Googlebot en el primer pase)
+    let domHtml = '';    // DOM tras ejecución de JS (para schema inyectado via JavaScript)
     let statusCode = 0;
 
-    test.beforeAll(async ({ request, baseURL }) => {
+    test.beforeAll(async ({ request, browser, baseURL }) => {
       const r = await request.get(`${baseURL}${path}`);
       statusCode = r.status();
       html = await r.text();
+
+      // Navegación real para capturar schema inyectado por JS
+      // `page` no está disponible en beforeAll (es per-test), se crea el contexto manualmente
+      const context = await browser.newContext({ ignoreHTTPSErrors: true });
+      const page = await context.newPage();
+      await page.goto(`${baseURL}${path}`, { waitUntil: 'load' });
+      domHtml = await page.content();
+      await context.close();
     });
 
     // ── A. Status code ──────────────────────────────────────────────────────
@@ -171,7 +180,7 @@ for (const { path, type } of pagesToTest) {
     test.describe('G. Schema JSON-LD', () => {
       test('hay al menos un bloque válido con @context y @type', () => {
         const blocks = [
-          ...html.matchAll(
+          ...domHtml.matchAll(
             /<script\s[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi,
           ),
         ];
@@ -197,7 +206,7 @@ for (const { path, type } of pagesToTest) {
 
       test('no contiene strings con valores inválidos', () => {
         const blocks = [
-          ...html.matchAll(
+          ...domHtml.matchAll(
             /<script\s[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi,
           ),
         ];
@@ -215,9 +224,7 @@ for (const { path, type } of pagesToTest) {
 
       if (expectations?.required && expectations.required.length > 0) {
         test(`@type requeridos: ${expectations.required.join(', ')}`, () => {
-          // Verifica @type de nivel superior para no confundir con tipos anidados
-          // (ej. Product dentro de ItemList no cuenta como Car de la ficha)
-          const types = getTopLevelTypes(html);
+          const types = getTopLevelTypes(domHtml);
           for (const t of expectations.required) {
             expect(types, `Falta @type "${t}" en el schema`).toContain(t);
           }
@@ -226,7 +233,7 @@ for (const { path, type } of pagesToTest) {
 
       for (const group of (expectations?.anyOf ?? [])) {
         test(`al menos uno de: ${group.join(' / ')}`, () => {
-          const types = getTopLevelTypes(html);
+          const types = getTopLevelTypes(domHtml);
           expect(
             group.some((t) => types.includes(t)),
             `Se esperaba al menos uno de estos @type de nivel superior: ${group.join(', ')}`,
@@ -236,7 +243,7 @@ for (const { path, type } of pagesToTest) {
 
       if (expectations?.fields && expectations.fields.length > 0) {
         test(`campos de vehículo: ${expectations.fields.join(', ')}`, () => {
-          const schemas = collectSchemas(html);
+          const schemas = collectSchemas(domHtml);
           for (const field of expectations.fields!) {
             expect(schemas, `Falta el campo "${field}" en el schema`).toContain(`"${field}"`);
           }
