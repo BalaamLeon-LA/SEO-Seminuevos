@@ -2,3 +2,7 @@ node_modules/
 playwright-report/
 test-results/
 .env
+
+# Archivos de uso local, no se comparten en el repo
+TicketsJira.md
+seminuevos_gsc_404_redirect_crosswalk.xlsx

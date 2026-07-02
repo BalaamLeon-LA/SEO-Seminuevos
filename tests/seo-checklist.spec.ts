@@ -1,5 +1,12 @@
 import { test, expect } from '@playwright/test';
-import { allPages, productionBaseURL, demoHostname, schemaByPageType } from './config';
+import {
+  allPages,
+  productionBaseURL,
+  demoHostname,
+  schemaByPageType,
+  ownCountryHostname,
+  otherCountryHostnames,
+} from './config';
 
 /** Concatena el contenido de todos los bloques JSON-LD (para buscar campos/strings). */
 function collectSchemas(html: string): string {
@@ -26,6 +33,24 @@ function getTopLevelTypes(html: string): string[] {
       const d = JSON.parse(content.trim()) as Record<string, unknown>;
       const t = d['@type'];
       return Array.isArray(t) ? (t as string[]) : t ? [t as string] : [];
+    } catch {
+      return [];
+    }
+  });
+}
+
+/** Devuelve los bloques JSON-LD de nivel superior cuyo @type incluye alguno de `types`. */
+function getTopLevelBlocksByType(html: string, types: string[]): Record<string, unknown>[] {
+  return [
+    ...html.matchAll(
+      /<script\s[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi,
+    ),
+  ].flatMap(([, content]) => {
+    try {
+      const d = JSON.parse(content.trim()) as Record<string, unknown>;
+      const t = d['@type'];
+      const blockTypes = Array.isArray(t) ? (t as string[]) : t ? [t as string] : [];
+      return blockTypes.some((bt) => types.includes(bt)) ? [d] : [];
     } catch {
       return [];
     }
@@ -85,6 +110,17 @@ for (const { path, type } of pagesToTest) {
         }
       });
       await page.goto(`${baseURL}${path}`, { waitUntil: 'load' });
+      // El schema JSON-LD se inyecta client-side y puede tardar unos segundos
+      // en montarse tras 'load'. Esperamos a que aparezca al menos un bloque
+      // (con timeout) para no reportar falsos negativos en G. Schema JSON-LD;
+      // si de verdad no hay ninguno, el timeout expira y los checks de esa
+      // sección fallan igual — es una señal real, no se enmascara.
+      await page
+        .waitForFunction(
+          () => document.querySelectorAll('script[type="application/ld+json"]').length > 0,
+          { timeout: 8_000 },
+        )
+        .catch(() => {});
       html = await page.content();
       domHtml = html;
       await context.close();
@@ -264,6 +300,31 @@ for (const { path, type } of pagesToTest) {
           const schemas = collectSchemas(domHtml);
           for (const field of expectations.fields!) {
             expect(schemas, `Falta el campo "${field}" en el schema`).toContain(`"${field}"`);
+          }
+        });
+      }
+
+      // LATAM-466: el schema de Organization/AutomotiveBusiness debe pertenecer
+      // al país correspondiente (dominio propio), no al del otro portal.
+      if (expectations?.anyOf?.some((group) => group.includes('Organization') || group.includes('AutomotiveBusiness'))) {
+        test(`Organization/AutomotiveBusiness pertenece a ${ownCountryHostname}`, () => {
+          const blocks = getTopLevelBlocksByType(domHtml, ['Organization', 'AutomotiveBusiness']);
+          expect(
+            blocks.length,
+            'No se encontró ningún bloque Organization/AutomotiveBusiness para validar',
+          ).toBeGreaterThan(0);
+          for (const block of blocks) {
+            const json = JSON.stringify(block);
+            expect(
+              json,
+              `El schema de Organization/AutomotiveBusiness no contiene el dominio esperado (${ownCountryHostname})`,
+            ).toContain(ownCountryHostname);
+            for (const otherHost of otherCountryHostnames) {
+              expect(
+                json,
+                `El schema de Organization/AutomotiveBusiness contiene datos de otro país (${otherHost})`,
+              ).not.toContain(otherHost);
+            }
           }
         });
       }

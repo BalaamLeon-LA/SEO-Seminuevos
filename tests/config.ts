@@ -41,6 +41,21 @@ export const productionBaseURL =
 
 export const demoBaseURL = demoBaseURLByCountry[country];
 
+/**
+ * Hostname de producción de cada país. Se usa para validar que el schema de
+ * Organization/AutomotiveBusiness pertenezca al país correspondiente y no
+ * al del otro portal (LATAM-466).
+ */
+export const productionHostnameByCountry: Record<Country, string> = Object.fromEntries(
+  Object.entries(productionBaseURLByCountry).map(([c, url]) => [c, new URL(url).hostname]),
+) as Record<Country, string>;
+
+export const ownCountryHostname = productionHostnameByCountry[country];
+
+export const otherCountryHostnames = (Object.keys(productionHostnameByCountry) as Country[])
+  .filter((c) => c !== country)
+  .map((c) => productionHostnameByCountry[c]);
+
 /** Hostname del ambiente de demo, para detectar URLs de demo en canonicals y links. */
 export const demoHostname = demoBaseURL
   ? (() => { try { return new URL(demoBaseURL).hostname; } catch { return null; } })()
@@ -85,6 +100,31 @@ export type PageType = keyof typeof pagesByType;
 export const allPages: Array<{ path: string; type: PageType }> = (
   Object.entries(pagesByType) as Array<[PageType, string[]]>
 ).flatMap(([type, paths]) => paths.map((path) => ({ path, type })));
+
+/**
+ * LATAM-463: páginas de combinación Marca + Modelo + Año. El title y la meta
+ * description deben incluir el año — se testean aparte del checklist genérico
+ * porque el único requisito del ticket es sobre ese contenido, no sobre schema.
+ */
+export const modelYearPathsByCountry: Partial<Record<Country, string[]>> = {
+  MX: ['/usados/-/autos/-/volkswagen/jetta/2020'],
+};
+
+export const modelYearPaths = modelYearPathsByCountry[country] ?? [];
+
+/**
+ * LATAM-442: URLs con parámetros de filtro/moderación (`?type_autos_*`) que no
+ * deben indexarse. A diferencia del resto del checklist, estas páginas deben
+ * llevar meta robots "noindex, follow" y canonical autorreferenciada
+ * (incluyendo el query string) en vez de la canonical "limpia" del listado.
+ */
+export const filteredPathsByCountry: Partial<Record<Country, string[]>> = {
+  MX: [
+    '/usados/ciudad+de+mexico-/autos/camioneta+suv/land+rover/-/2016?type_autos_motor-credit-status=activado&type_autos_moderated=moderated',
+  ],
+};
+
+export const filteredPaths = filteredPathsByCountry[country] ?? [];
 
 // ─── Schema esperado por tipo de página ───────────────────────────────────────
 

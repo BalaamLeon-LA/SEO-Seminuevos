@@ -40,7 +40,9 @@ playwright.config.ts   → two projects (production, demo) reading from .env
 tests/
   config.ts            → country selection (COUNTRY) + page definitions + schema expectations per page type
   seo-domain.spec.ts   → domain-level checks (robots.txt, sitemaps)
-  seo-checklist.spec.ts → per-page 10-point checklist
+  seo-checklist.spec.ts → per-page 10-point checklist (allPages)
+  seo-model-year.spec.ts → title/meta description must include the year on Brand+Model+Year pages (modelYearPaths)
+  seo-noindex.spec.ts  → filtered/moderation query-param pages must be noindex,follow with a self-referencing canonical (filteredPaths)
 ```
 
 ### Country selection (MX / EC)
@@ -52,11 +54,11 @@ tests/
 
 ### How tests work
 
-Each page is tested via two fetches:
-1. **Raw HTTP** (`request.get`) — validates status code, canonical, meta robots, internal links (what crawlers see without JS).
-2. **Browser render** (`page.goto`) — validates schema JSON-LD blocks that may be JS-injected.
+Each page in `seo-checklist.spec.ts` is loaded with a single real browser navigation (`page.goto` + `page.content()`) — `request.get()` gets blocked by Cloudflare's bot challenge on this site. For SSR pages the resulting DOM equals the server HTML, so crawler-facing checks (title, meta, canonical, H1) and JS-injected schema are both validated from the same capture.
 
-Tests are generated dynamically by iterating `allPages` from `config.ts`, so every page listed there gets the full 10-point check automatically.
+Note: JSON-LD schema is injected client-side and can take a couple of seconds to mount after the `load` event — a `page.content()` taken immediately after `load` can see 0 `ld+json` blocks even when the schema is present. Keep this in mind before treating a schema failure as a false positive.
+
+Tests are generated dynamically by iterating `allPages` from `config.ts`, so every page listed there gets the full 10-point check automatically. `seo-model-year.spec.ts` and `seo-noindex.spec.ts` follow the same per-page pattern but iterate their own path lists (`modelYearPaths`, `filteredPaths`) since they check different, page-type-specific expectations.
 
 ### Adding pages to test
 
