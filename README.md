@@ -1,6 +1,6 @@
 # SEO-Seminuevos
 
-Tests automatizados de QA SEO para [seminuevos.com](https://www.seminuevos.com), basados en el Checklist de Calidad de Despliegue.
+Tests automatizados de QA SEO para [seminuevos.com](https://www.seminuevos.com) (MX) y [patiotuerca.com](https://ecuador.patiotuerca.com) (EC), basados en el Checklist de Calidad de Despliegue.
 
 Verifican el HTML que recibe el servidor (equivalente a "Ver código fuente") para detectar regresiones de SEO antes y después de cada deploy.
 
