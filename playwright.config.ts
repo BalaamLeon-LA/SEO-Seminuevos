@@ -1,13 +1,14 @@
 import 'dotenv/config';
 import { defineConfig } from '@playwright/test';
-import { productionBaseURL, stagingBaseURL } from './tests/config';
+import { productionBaseURL, demoBaseURL } from './tests/config';
 
 export default defineConfig({
   testDir: './tests',
   fullyParallel: true,
+  timeout: 60_000,
   reporter: [['html', { open: 'never' }], ['list']],
   use: {
-    // Ignorar errores de certificado en staging (certificados autofirmados, etc.)
+    // Ignorar errores de certificado en demo (certificados autofirmados, etc.)
     ignoreHTTPSErrors: true,
   },
   projects: [
@@ -16,8 +17,8 @@ export default defineConfig({
       use: { baseURL: productionBaseURL },
     },
     {
-      name: 'staging',
-      use: { baseURL: stagingBaseURL },
+      name: 'demo',
+      use: { baseURL: demoBaseURL },
     },
   ],
 });

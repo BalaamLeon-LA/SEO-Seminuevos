@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { allPages, productionBaseURL, stagingHostname, schemaByPageType } from './config';
+import { allPages, productionBaseURL, demoHostname, schemaByPageType } from './config';
 
 /** Concatena el contenido de todos los bloques JSON-LD (para buscar campos/strings). */
 function collectSchemas(html: string): string {
@@ -35,17 +35,24 @@ function getTopLevelTypes(html: string): string[] {
 const productionHostname = new URL(productionBaseURL).hostname;
 
 /**
- * TEST_PATHS: para testear solo páginas específicas.
+ * TEST_PATHS: para testear solo páginas específicas (rutas manuales).
+ * TEST_TYPE:  para testear todas las páginas de uno o más tipos definidos en config.ts.
  *
  * Ejemplos:
  *   TEST_PATHS=/usados/-/autos npm run test:prod
- *   TEST_PATHS=/vehicle/autos-ford-bronco-zapopan-2023/4797505 npm run test:staging
  *   TEST_PATHS=/mi-landing,/otra-landing npm run test:prod
+ *   TEST_TYPE=home npm run test:prod
+ *   TEST_TYPE=model,details npm run test:demo
+ *
+ * TEST_PATHS tiene prioridad sobre TEST_TYPE.
  */
 const customPaths = process.env['TEST_PATHS']?.split(',').map((p: string) => p.trim()).filter(Boolean);
+const customTypes = process.env['TEST_TYPE']?.split(',').map((t: string) => t.trim()).filter(Boolean);
 const pagesToTest = customPaths?.length
   ? customPaths.map((path: string) => ({ path, type: 'custom' as const }))
-  : allPages;
+  : customTypes?.length
+    ? allPages.filter(({ type }) => customTypes.includes(type))
+    : allPages;
 
 // Valores de placeholder que no deben aparecer en texto visible ni schema
 const PLACEHOLDER = /\b(undefined|null|NaN)\b|\{\{[^}]*\}\}/i;
@@ -58,21 +65,28 @@ for (const { path, type } of pagesToTest) {
     type === 'custom' ? (path.includes('/vehicle/') ? 'details' : 'categories') : type;
 
   test.describe(`[${type}] ${path}`, () => {
-    let html = '';       // HTML crudo del servidor (lo que ve Googlebot en el primer pase)
-    let domHtml = '';    // DOM tras ejecución de JS (para schema inyectado via JavaScript)
+    let html = '';       // DOM renderizado por el browser (request.get() es bloqueado por Cloudflare)
+    let domHtml = '';    // Alias de html — mismo contenido, para checks de schema JS-inyectado
     let statusCode = 0;
 
-    test.beforeAll(async ({ request, browser, baseURL }) => {
-      const r = await request.get(`${baseURL}${path}`);
-      statusCode = r.status();
-      html = await r.text();
-
-      // Navegación real para capturar schema inyectado por JS
-      // `page` no está disponible en beforeAll (es per-test), se crea el contexto manualmente
+    test.beforeAll(async ({ browser, baseURL }) => {
+      // Una sola navegación con browser real para pasar el challenge de Cloudflare.
+      // Para sitios SSR el DOM preserva el HTML del servidor, por lo que los checks
+      // de crawler (title, meta, canonical, H1) son equivalentes al HTML crudo.
       const context = await browser.newContext({ ignoreHTTPSErrors: true });
       const page = await context.newPage();
+      // Capturar el status de la última respuesta de documento (después del challenge de Cloudflare)
+      page.on('response', (response) => {
+        if (
+          response.request().resourceType() === 'document' &&
+          response.url().startsWith(baseURL ?? '')
+        ) {
+          statusCode = response.status();
+        }
+      });
       await page.goto(`${baseURL}${path}`, { waitUntil: 'load' });
-      domHtml = await page.content();
+      html = await page.content();
+      domHtml = html;
       await context.close();
     });
 
@@ -85,6 +99,10 @@ for (const { path, type } of pagesToTest) {
     // ── B. Meta robots ──────────────────────────────────────────────────────
 
     test.describe('B. Meta robots', () => {
+      test.beforeEach(({ }, testInfo) => {
+        test.skip(testInfo.project.name !== 'production', 'Demo debe tener noindex; solo se verifica en producción');
+      });
+
       test('no tiene noindex', () => {
         const p1 = /<meta\s[^>]*name=["']robots["'][^>]*content=["'][^"']*noindex[^"']*["']/i;
         const p2 = /<meta\s[^>]*content=["'][^"']*noindex[^"']*["'][^>]*name=["']robots["']/i;
@@ -144,7 +162,7 @@ for (const { path, type } of pagesToTest) {
         expect(url, `El canonical debe apuntar a ${productionHostname}`).toContain(productionHostname);
       });
 
-      test('no contiene staging, localhost ni placeholders', () => {
+      test('no contiene demo, localhost ni placeholders', () => {
         const m =
           html.match(/<link\s[^>]*rel=["']canonical["'][^>]*href=["']([^"']+)["']/i) ??
           html.match(/<link\s[^>]*href=["']([^"']+)["'][^>]*rel=["']canonical["']/i);
@@ -152,8 +170,8 @@ for (const { path, type } of pagesToTest) {
         const url = m![1].trim();
         expect(url).not.toMatch(/localhost|127\.0\.0\.1/i);
         expect(url, 'El canonical contiene un valor inválido').not.toMatch(PLACEHOLDER);
-        if (stagingHostname) {
-          expect(url, `El canonical apunta a staging (${stagingHostname})`).not.toContain(stagingHostname);
+        if (demoHostname) {
+          expect(url, `El canonical apunta a demo (${demoHostname})`).not.toContain(demoHostname);
         }
       });
     });
@@ -254,12 +272,12 @@ for (const { path, type } of pagesToTest) {
     // ── H. Links internos ───────────────────────────────────────────────────
 
     test.describe('H. Links internos', () => {
-      test('no hay links apuntando a staging ni localhost', () => {
+      test('no hay links apuntando a demo ni localhost', () => {
         const hrefs = [...html.matchAll(/href=["']([^"']+)["']/gi)].map((m) => m[1]);
         const bad = hrefs.filter(
           (h) =>
             /localhost|127\.0\.0\.1/i.test(h) ||
-            (stagingHostname ? h.includes(stagingHostname) : false),
+            (demoHostname ? h.includes(demoHostname) : false),
         );
         expect(bad, `Links incorrectos encontrados: ${bad.join(', ')}`).toHaveLength(0);
       });

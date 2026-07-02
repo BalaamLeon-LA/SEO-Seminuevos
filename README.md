@@ -24,25 +24,43 @@ npx playwright install chromium
 cp .env.example .env
 ```
 
-Edita `.env` y agrega la URL de staging:
+Edita `.env` y agrega las URLs de demo:
 
 ```env
-PRODUCTION_BASE_URL=https://www.seminuevos.com   # ya configurado por defecto
-STAGING_BASE_URL=https://staging.seminuevos.com
+COUNTRY=MX                                          # MX o EC — portal por defecto
+DEMO_BASE_URL_MX=https://demo.seminuevos.com
+DEMO_BASE_URL_EC=https://demo-ecuador.patiotuerca.com
 ```
 
+`PRODUCTION_BASE_URL` no necesita configurarse: se infiere de `COUNTRY` (MX → `https://www.seminuevos.com`, EC → `https://ecuador.patiotuerca.com`). Solo defínela si necesitas forzar un dominio distinto.
+
 ## Uso
+
+Este suite testea dos portales casi idénticos, MX y EC, con el mismo set de tests. El portal se selecciona con la variable `COUNTRY` (default `MX`).
 
 ### Correr contra producción
 
 ```bash
-npm run test:prod
+npm run test:prod        # MX (default)
+npm run test:prod:mx
+npm run test:prod:ec
 ```
 
-### Correr contra staging
+### Correr contra demo
 
 ```bash
-npm run test:staging
+npm run test:demo        # MX (default)
+npm run test:demo:mx
+npm run test:demo:ec
+```
+
+### Combinar país con otras variables
+
+`COUNTRY` se puede combinar con `TEST_PATHS` o `TEST_TYPE`:
+
+```bash
+COUNTRY=EC TEST_TYPE=details npm run test:prod
+COUNTRY=EC TEST_PATHS=/usados/-/autos npm run test:demo
 ```
 
 ### Correr solo páginas específicas
@@ -51,7 +69,7 @@ npm run test:staging
 
 ```bash
 TEST_PATHS=/usados/-/autos npm run test:prod
-TEST_PATHS=/mi-landing,/otra-landing npm run test:staging
+TEST_PATHS=/mi-landing,/otra-landing npm run test:demo
 ```
 
 ### Ver reporte HTML
@@ -72,7 +90,7 @@ Siempre corre, independientemente de `TEST_PATHS`.
 |---|---|
 | `robots.txt` | `User-agent: *` no tiene `Disallow: /` ni bloquea rutas críticas (`/usados`, `/vehicle`) |
 | `Sitemaps` | Todos los sitemaps declarados en `robots.txt` responden con 200 |
-| `Sitemaps` | No contienen URLs de staging ni localhost |
+| `Sitemaps` | No contienen URLs de demo ni localhost |
 
 ### Por página (`seo-checklist.spec.ts`)
 
@@ -84,10 +102,10 @@ Se ejecuta para cada URL en `tests/config.ts` (o las definidas con `TEST_PATHS`)
 | `B. Meta robots` | No tiene `noindex` ni `nofollow` accidental |
 | `C. Title` | Existe exactamente uno, sin valores vacíos ni placeholders |
 | `D. Meta description` | Existe y no contiene `undefined`, `null`, `NaN` ni `{{ }}` |
-| `E. Canonical` | Existe, usa HTTPS, apunta al dominio de producción, sin staging ni localhost |
+| `E. Canonical` | Existe, usa HTTPS, apunta al dominio de producción, sin demo ni localhost |
 | `F. H1` | Existe exactamente uno, sin valores vacíos ni placeholders |
 | `G. Schema JSON-LD` | JSON válido con `@context` y `@type`; verifica los tipos esperados por tipo de página (ver tabla abajo) |
-| `H. Links internos` | Ningún `href` apunta a staging ni localhost |
+| `H. Links internos` | Ningún `href` apunta a demo ni localhost |
 | `I. Imágenes` | Atributos `alt` sin valores placeholder |
 | `J. GTM` | Google Tag Manager está presente |
 
@@ -108,6 +126,8 @@ Las fichas (`details`) también verifican que el schema incluya los campos: `pri
 ---
 
 ## Agregar páginas al suite
+
+MX y EC comparten el mismo catálogo de rutas, con una excepción: la ficha de vehículo (`details`) no se comparte entre catálogos, así que su path se define por país en `detailsPathByCountry` (`tests/config.ts`). El resto de tipos (`home`, `hub`, `brand`, `model`) usa las mismas rutas para ambos portales.
 
 Edita `tests/config.ts` y agrega rutas en el tipo que corresponda:
 

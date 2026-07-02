@@ -5,7 +5,21 @@
   "scripts": {
     "test": "playwright test",
     "test:prod": "playwright test --project=production",
-    "test:staging": "playwright test --project=staging",
+    "test:demo": "playwright test --project=demo",
+    "test:prod:mx": "COUNTRY=MX playwright test --project=production",
+    "test:prod:ec": "COUNTRY=EC playwright test --project=production",
+    "test:demo:mx": "COUNTRY=MX playwright test --project=demo",
+    "test:demo:ec": "COUNTRY=EC playwright test --project=demo",
+    "test:prod:home": "TEST_TYPE=home playwright test tests/seo-checklist.spec.ts --project=production",
+    "test:prod:hub": "TEST_TYPE=hub playwright test tests/seo-checklist.spec.ts --project=production",
+    "test:prod:brand": "TEST_TYPE=brand playwright test tests/seo-checklist.spec.ts --project=production",
+    "test:prod:model": "TEST_TYPE=model playwright test tests/seo-checklist.spec.ts --project=production",
+    "test:prod:details": "TEST_TYPE=details playwright test tests/seo-checklist.spec.ts --project=production",
+    "test:demo:home": "TEST_TYPE=home playwright test tests/seo-checklist.spec.ts --project=demo",
+    "test:demo:hub": "TEST_TYPE=hub playwright test tests/seo-checklist.spec.ts --project=demo",
+    "test:demo:brand": "TEST_TYPE=brand playwright test tests/seo-checklist.spec.ts --project=demo",
+    "test:demo:model": "TEST_TYPE=model playwright test tests/seo-checklist.spec.ts --project=demo",
+    "test:demo:details": "TEST_TYPE=details playwright test tests/seo-checklist.spec.ts --project=demo",
     "report": "playwright show-report"
   },
   "devDependencies": {

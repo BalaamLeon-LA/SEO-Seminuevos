@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { stagingHostname } from './config';
+import { demoHostname } from './config';
 
 // ─── robots.txt ────────────────────────────────────────────────────────────────
 
@@ -67,15 +67,15 @@ test.describe('Sitemaps', () => {
     }
   });
 
-  test('sitemaps no contienen URLs de staging ni localhost', async ({ request, baseURL }) => {
+  test('sitemaps no contienen URLs de demo ni localhost', async ({ request, baseURL }) => {
     // Solo descarga los primeros 3 para no tardar demasiado en sitemaps grandes
     for (const path of sitemapPaths.slice(0, 3)) {
       const r = await request.get(`${baseURL}${path}`);
       const xml = await r.text();
       expect(xml, `Sitemap ${path} contiene localhost`).not.toMatch(/localhost|127\.0\.0\.1/i);
-      if (stagingHostname) {
-        expect(xml, `Sitemap ${path} contiene URLs de staging (${stagingHostname})`).not.toContain(
-          stagingHostname,
+      if (demoHostname) {
+        expect(xml, `Sitemap ${path} contiene URLs de demo (${demoHostname})`).not.toContain(
+          demoHostname,
         );
       }
     }

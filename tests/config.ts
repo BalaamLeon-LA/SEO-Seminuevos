@@ -1,18 +1,49 @@
 import 'dotenv/config';
 
 /**
+ * Portal contra el que corren los tests. MX y EC comparten prácticamente
+ * todos los templates, por lo que reusan el mismo suite — solo cambian las
+ * URLs base y (cuando aplica) el path de la ficha de vehículo.
+ *
+ * Selección vía variable de entorno: COUNTRY=MX (default) o COUNTRY=EC.
+ */
+export type Country = 'MX' | 'EC';
+
+const VALID_COUNTRIES: Country[] = ['MX', 'EC'];
+
+function resolveCountry(): Country {
+  const raw = (process.env.COUNTRY ?? 'MX').toUpperCase();
+  if (!VALID_COUNTRIES.includes(raw as Country)) {
+    throw new Error(`COUNTRY inválido: "${raw}". Valores permitidos: ${VALID_COUNTRIES.join(', ')}`);
+  }
+  return raw as Country;
+}
+
+export const country = resolveCountry();
+
+const productionBaseURLByCountry: Record<Country, string> = {
+  MX: 'https://www.seminuevos.com',
+  EC: 'https://ecuador.patiotuerca.com',
+};
+
+const demoBaseURLByCountry: Record<Country, string> = {
+  MX: process.env.DEMO_BASE_URL_MX ?? '',
+  EC: process.env.DEMO_BASE_URL_EC ?? '',
+};
+
+/**
  * URL canónica de producción. Es el dominio contra el que se validan los
- * <link rel="canonical"> en TODOS los ambientes — incluyendo staging.
- * Un canonical que apunte a staging en vez de producción es un bug SEO.
+ * <link rel="canonical"> en TODOS los ambientes — incluyendo demo.
+ * Un canonical que apunte a demo en vez de producción es un bug SEO.
  */
 export const productionBaseURL =
-  process.env.PRODUCTION_BASE_URL ?? 'https://www.seminuevos.com';
+  process.env.PRODUCTION_BASE_URL ?? productionBaseURLByCountry[country];
 
-export const stagingBaseURL = process.env.STAGING_BASE_URL ?? '';
+export const demoBaseURL = demoBaseURLByCountry[country];
 
-/** Hostname del ambiente de staging, para detectar URLs de staging en canonicals y links. */
-export const stagingHostname = stagingBaseURL
-  ? (() => { try { return new URL(stagingBaseURL).hostname; } catch { return null; } })()
+/** Hostname del ambiente de demo, para detectar URLs de demo en canonicals y links. */
+export const demoHostname = demoBaseURL
+  ? (() => { try { return new URL(demoBaseURL).hostname; } catch { return null; } })()
   : null;
 
 /**
@@ -27,6 +58,12 @@ export const stagingHostname = stagingBaseURL
  *
  * El tipo determina qué @types de schema se verifican automáticamente.
  */
+/** Ficha de vehículo de referencia: el path difiere por país porque el catálogo no se comparte. */
+const detailsPathByCountry: Record<Country, string> = {
+  MX: '/vehicle/autos-ford-bronco-zapopan-2023/4797505',
+  EC: '/vehicle/autos-ford-bronco-cumbaya-2026/1956381',
+};
+
 export const pagesByType = {
   home: ['/'],
   hub: [
@@ -39,7 +76,7 @@ export const pagesByType = {
     '/usados/-/autos/-/ford/bronco',
   ],
   details: [
-    '/vehicle/autos-ford-bronco-zapopan-2023/4797505',
+    detailsPathByCountry[country],
   ],
 } satisfies Record<string, string[]>;
 
