@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { modelYearPaths } from './config';
+import { modelYearPaths, yearOnlyPaths } from './config';
 
 /**
  * LATAM-463: en las páginas de combinación Marca + Modelo + Año, el <title> y
@@ -7,8 +7,12 @@ import { modelYearPaths } from './config';
  * "Volkswagen Jetta 2020 ..."). Se testea aparte del checklist genérico
  * (seo-checklist.spec.ts) porque el ticket solo pide validar ese contenido,
  * no el schema de la página.
+ *
+ * LATAM-481: mismo requisito, pero para páginas de combinación Autos + Año
+ * SIN marca/modelo (ej. /usados/-/autos/-/-/-/2020) — se agregan a la misma
+ * lista porque el check (año en título y meta description) es idéntico.
  */
-for (const path of modelYearPaths) {
+for (const path of [...modelYearPaths, ...yearOnlyPaths]) {
   const year = path.match(/(\d{4})$/)?.[1] ?? '';
 
   test.describe(`[model-year] ${path}`, () => {

@@ -1,0 +1,22 @@
+Seminuevos.com Blog Cleanup - Cloudflare Implementation Notes
+===========================================================
+
+1) Bulk Redirects file for 301 redirects:
+   File: seminuevos_cloudflare_bulk_redirects_301.txt
+   Upload this into Cloudflare Bulk Redirects / Redirect Lists.
+   Columns: source_url,target_url,status_code,preserve_query_string,include_subdomains,subpath_matching
+
+2) 410 Gone URLs:
+   File: seminuevos_cloudflare_410_urls.txt
+   These should not be uploaded as redirects. Cloudflare Bulk Redirects does not create 410 responses.
+   Implement them through origin/server config, a Cloudflare Worker, or another edge rule capable of returning status 410.
+
+Total source rows processed: 430
+Total 301 redirects: 198
+Total 410 Gone URLs: 232
+
+Recommended QA after deployment:
+- Crawl the full source URL list.
+- Confirm every 301 returns exactly one hop to the target URL.
+- Confirm every 410 URL returns HTTP 410, not 404, 200, or soft-404.
+- Check that no source URL redirects back to /blog/ or creates redirect chains.

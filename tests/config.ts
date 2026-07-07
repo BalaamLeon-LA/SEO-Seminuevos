@@ -113,6 +113,19 @@ export const modelYearPathsByCountry: Partial<Record<Country, string[]>> = {
 export const modelYearPaths = modelYearPathsByCountry[country] ?? [];
 
 /**
+ * LATAM-481: páginas de combinación Autos + Año SIN marca/modelo (ej.
+ * /usados/-/autos/-/-/-/2020) que antes compartían el mismo title/meta
+ * description genérico sin importar el año. Mismo requisito que
+ * modelYearPaths (LATAM-463) — título y meta description deben incluir el
+ * año — por eso seo-model-year.spec.ts itera ambas listas juntas.
+ */
+export const yearOnlyPathsByCountry: Partial<Record<Country, string[]>> = {
+  MX: ['/usados/-/autos/-/-/-/2020'],
+};
+
+export const yearOnlyPaths = yearOnlyPathsByCountry[country] ?? [];
+
+/**
  * LATAM-442: URLs con parámetros de filtro/moderación (`?type_autos_*`) que no
  * deben indexarse. A diferencia del resto del checklist, estas páginas deben
  * llevar meta robots "noindex, follow" y canonical autorreferenciada
@@ -121,6 +134,11 @@ export const modelYearPaths = modelYearPathsByCountry[country] ?? [];
 export const filteredPathsByCountry: Partial<Record<Country, string[]>> = {
   MX: [
     '/usados/ciudad+de+mexico-/autos/camioneta+suv/land+rover/-/2016?type_autos_motor-credit-status=activado&type_autos_moderated=moderated',
+    // LATAM-482: el noindex debe aplicar a CUALQUIER query param que empiece
+    // con "type_", no solo a los ya conocidos de LATAM-442 (type_autos_*).
+    // Se usa un parámetro sintético para probar la regla de forma genérica,
+    // en vez de otro parámetro real que también caería bajo LATAM-442.
+    '/usados/-/autos/-/volkswagen?type_qa_regresion_test=1',
   ],
 };
 
@@ -135,6 +153,10 @@ export type SchemaExpectations = {
   anyOf?: string[][];
   /** Nombres de campos JSON que deben aparecer en el schema (para fichas de vehículo). */
   fields?: string[];
+  /** @types de nivel superior que NO deben aparecer (schemas que el rediseño reemplaza). */
+  forbiddenTypes?: string[];
+  /** Nombres de campos JSON que NO deben aparecer en ningún bloque del schema. */
+  forbiddenFields?: string[];
 };
 
 /**
@@ -149,19 +171,41 @@ export type SchemaExpectations = {
 export const schemaByPageType: Partial<Record<PageType | 'custom', SchemaExpectations>> = {
   home: {
     required: ['WebSite', 'ItemList', 'FAQPage'],
-    anyOf: [['Organization', 'AutomotiveBusiness']],
+    // AutomotiveBusiness va en su propio grupo de un solo elemento (no en
+    // `required`) para que su test corra independiente del resto — igual
+    // razón que en `brand`/`model` para SiteNavigationElement. `Organization`
+    // ya no se incluye como alternativa: LAA-726 lo prohíbe explícitamente
+    // vía `forbiddenTypes`, así que listarlo aquí como válido sería contradictorio.
+    anyOf: [['AutomotiveBusiness']],
+    // LAA-726: el rediseño Patiotuerca reemplaza Organization por AutomotiveBusiness
+    // y elimina la propiedad `addressCountry` (no soportada) del schema de tipo Car.
+    forbiddenTypes: ['Organization'],
+    forbiddenFields: ['addressCountry'],
   },
   hub: {
     required: ['WebSite', 'ItemList', 'BreadcrumbList', 'FAQPage'],
+    // hub no tiene ticket de reemplazo — Organization sigue siendo una
+    // alternativa válida a AutomotiveBusiness aquí (a diferencia de home/brand/model).
     anyOf: [['Organization', 'AutomotiveBusiness']],
   },
   brand: {
     required: ['WebSite', 'Brand', 'BreadcrumbList', 'ItemList', 'FAQPage'],
-    anyOf: [['Organization', 'AutomotiveBusiness']],
+    // Cada grupo de un solo elemento reporta su propio requisito (LAA-728) en
+    // un test independiente del resto de `required` — así un gap preexistente
+    // (ej. falta de "Brand") no enmascara estos checks. Ver nota en `home`
+    // sobre por qué "Organization" ya no aparece como alternativa aquí.
+    anyOf: [['AutomotiveBusiness'], ['SiteNavigationElement']],
+    // LAA-728: mismo reemplazo de schema que LAA-726, más SiteNavigationElement.
+    forbiddenTypes: ['Organization'],
+    forbiddenFields: ['addressCountry'],
   },
   model: {
     required: ['WebSite', 'BreadcrumbList', 'ItemList', 'Brand', 'Model', 'FAQPage'],
-    anyOf: [['Organization', 'AutomotiveBusiness']],
+    // Ver nota en `brand` sobre los grupos de un solo elemento.
+    anyOf: [['AutomotiveBusiness'], ['SiteNavigationElement']],
+    // LAA-727: mismo reemplazo de schema que LAA-726, más SiteNavigationElement.
+    forbiddenTypes: ['Organization'],
+    forbiddenFields: ['addressCountry'],
   },
   details: {
     required: ['Brand', 'Model', 'VehicleModelDate', 'Price'],
@@ -169,3 +213,50 @@ export const schemaByPageType: Partial<Record<PageType | 'custom', SchemaExpecta
     fields: ['Mileage', 'PriceCurrency', 'Offer', 'Availability', 'VehicleModelDate', 'Image'],
   },
 };
+
+/**
+ * LAA-726: anchors long-tail que SEO pidió agregar como enlazado interno en la
+ * Home del rediseño Patiotuerca (EC). Es específico de ese portal/ticket, por
+ * lo que solo se define para EC — sigue el mismo patrón que modelYearPaths.
+ */
+export const longTailAnchorsByCountry: Partial<Record<Country, string[]>> = {
+  EC: [
+    'carros seminuevos Guayaquil',
+    'seminuevos',
+    'patiotuerca',
+    'carros económicos Ecuador',
+    'carros híbridos en Ecuador',
+    'carros usados Quito de oportunidad',
+    'seminuevos Chevrolet',
+    'carros familiares',
+    'autos eléctricos Quito',
+    'carros automáticos',
+    'carros chinos',
+    'Toyota seminuevos',
+    'Patio Tuerca Cuenca',
+    'carros a diesel',
+    'Chevrolet Cruze',
+    'autos de venta por enfermedad urgente',
+    'venta de camionetas doble cabina publicado hoy',
+    'seminuevos Hyundai',
+    'camionetas 2023',
+    'carros chocados de venta',
+    'Renault Ambato',
+    'Renault Logan',
+    'Kia Carnival',
+    'Kia Optima Ecuador',
+  ],
+};
+
+export const longTailAnchors = longTailAnchorsByCountry[country] ?? [];
+
+/**
+ * LAA-727 / LAA-728: sección "Continúa tu búsqueda de carros" que debe existir
+ * al final de las páginas de Modelo y Marca del rediseño Patiotuerca (EC).
+ * Reusa los paths ya definidos en pagesByType para no duplicar rutas.
+ */
+export const continueSearchSectionPathsByCountry: Partial<Record<Country, string[]>> = {
+  EC: [...pagesByType.brand, ...pagesByType.model],
+};
+
+export const continueSearchSectionPaths = continueSearchSectionPathsByCountry[country] ?? [];

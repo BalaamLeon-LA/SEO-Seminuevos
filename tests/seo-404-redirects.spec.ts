@@ -3,7 +3,7 @@ import { country } from './config';
 
 /**
  * LATAM-445: limpieza de 404s del blog detectados en GSC, según el crosswalk
- * seminuevos_gsc_404_redirect_crosswalk.xlsx (Portal: Seminuevos → solo MX).
+ * blog-redirects/seminuevos_blog_404_redirect_crosswalk.xlsx (Portal: Seminuevos → solo MX).
  *
  * Del crosswalk (997 URLs 404 clasificadas) se testean dos buckets:
  * - "Ready to implement" (301): las 13 URLs de match exacto/alta confianza,

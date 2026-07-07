@@ -227,6 +227,29 @@ for (const { path, type } of pagesToTest) {
         expect(text, 'H1 está vacío').not.toBe('');
         expect(text, `H1 contiene un valor inválido: "${text}"`).not.toMatch(PLACEHOLDER);
       });
+
+      // LAA-726/727/728: el H1 debe ser el primer encabezado relevante de la
+      // página — no debe haber H2-H6 (ni otro H1) antes de él en el DOM.
+      test('es el primer encabezado de la página (sin encabezados previos)', () => {
+        const h1Index = html.search(/<h1[\s>]/i);
+        expect(h1Index, 'No se encontró H1').toBeGreaterThanOrEqual(0);
+        const before = html.slice(0, h1Index).match(/<h[1-6][\s>]/gi) ?? [];
+        expect(
+          before,
+          `Se encontraron encabezados antes del H1: ${before.join(', ')}`,
+        ).toHaveLength(0);
+      });
+
+      // LAA-726/727/728: el H1 no debe duplicar el contenido del <title>.
+      test('no duplica el contenido del <title>', () => {
+        const h1Match = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+        const titleMatch = html.match(/<title[^>]*>([^<]*)<\/title>/i);
+        expect(h1Match, 'No se encontró H1').not.toBeNull();
+        expect(titleMatch, 'No se encontró <title>').not.toBeNull();
+        const h1Text = h1Match![1].replace(/<[^>]+>/g, '').trim().toLowerCase();
+        const titleText = titleMatch![1].trim().toLowerCase();
+        expect(h1Text, `El H1 duplica el <title>: "${h1Text}"`).not.toBe(titleText);
+      });
     });
 
     // ── G. Schema JSON-LD ───────────────────────────────────────────────────
@@ -300,6 +323,26 @@ for (const { path, type } of pagesToTest) {
           const schemas = collectSchemas(domHtml);
           for (const field of expectations.fields!) {
             expect(schemas, `Falta el campo "${field}" en el schema`).toContain(`"${field}"`);
+          }
+        });
+      }
+
+      // LAA-726/727/728: @types que el rediseño reemplaza (ej. Organization -> AutomotiveBusiness).
+      if (expectations?.forbiddenTypes && expectations.forbiddenTypes.length > 0) {
+        test(`no debe incluir @type: ${expectations.forbiddenTypes.join(', ')}`, () => {
+          const types = getTopLevelTypes(domHtml);
+          for (const t of expectations.forbiddenTypes!) {
+            expect(types, `El @type "${t}" debería haber sido reemplazado`).not.toContain(t);
+          }
+        });
+      }
+
+      // LAA-726/727/728: propiedades no soportadas que deben eliminarse del schema (ej. addressCountry en Car).
+      if (expectations?.forbiddenFields && expectations.forbiddenFields.length > 0) {
+        test(`no debe incluir el campo: ${expectations.forbiddenFields.join(', ')}`, () => {
+          const schemas = collectSchemas(domHtml);
+          for (const field of expectations.forbiddenFields!) {
+            expect(schemas, `El campo "${field}" no debería estar en el schema`).not.toContain(`"${field}"`);
           }
         });
       }
