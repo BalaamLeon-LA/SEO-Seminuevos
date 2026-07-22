@@ -18,8 +18,11 @@ for (const path of filteredPaths) {
       const context = await browser.newContext({ ignoreHTTPSErrors: true });
       const page = await context.newPage();
       page.on('response', (response) => {
+        // mainFrame(): evita capturar iframes ocultos con resourceType "document"
+        // (ej. silent-check-sso.html de Keycloak) en vez de la página real.
         if (
           response.request().resourceType() === 'document' &&
+          response.frame() === page.mainFrame() &&
           response.url().startsWith(baseURL ?? '')
         ) {
           statusCode = response.status();

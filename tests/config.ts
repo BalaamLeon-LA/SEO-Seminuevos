@@ -88,7 +88,7 @@ export const pagesByType = {
     '/usados/-/autos/-/volkswagen',
   ],
   model: [
-    '/usados/-/autos/-/ford/bronco',
+    '/usados/-/autos/-/ford/expedition',
   ],
   details: [
     detailsPathByCountry[country],
@@ -157,6 +157,8 @@ export type SchemaExpectations = {
   forbiddenTypes?: string[];
   /** Nombres de campos JSON que NO deben aparecer en ningún bloque del schema. */
   forbiddenFields?: string[];
+  /** SEO-119: @types que deben aparecer dentro de itemListElement[].item del ItemList (ej. Product + Car). */
+  itemListItemTypes?: string[];
 };
 
 /**
@@ -181,12 +183,16 @@ export const schemaByPageType: Partial<Record<PageType | 'custom', SchemaExpecta
     // y elimina la propiedad `addressCountry` (no soportada) del schema de tipo Car.
     forbiddenTypes: ['Organization'],
     forbiddenFields: ['addressCountry'],
+    // SEO-119: cada item del ItemList debe tener ambos @type, como en MX.
+    itemListItemTypes: ['Product', 'Car'],
   },
   hub: {
     required: ['WebSite', 'ItemList', 'BreadcrumbList', 'FAQPage'],
     // hub no tiene ticket de reemplazo — Organization sigue siendo una
     // alternativa válida a AutomotiveBusiness aquí (a diferencia de home/brand/model).
     anyOf: [['Organization', 'AutomotiveBusiness']],
+    // SEO-119: mismo requisito que en `home` — ver nota ahí.
+    itemListItemTypes: ['Product', 'Car'],
   },
   brand: {
     required: ['WebSite', 'Brand', 'BreadcrumbList', 'ItemList', 'FAQPage'],
@@ -198,6 +204,8 @@ export const schemaByPageType: Partial<Record<PageType | 'custom', SchemaExpecta
     // LAA-728: mismo reemplazo de schema que LAA-726, más SiteNavigationElement.
     forbiddenTypes: ['Organization'],
     forbiddenFields: ['addressCountry'],
+    // SEO-119: mismo requisito que en `home` — ver nota ahí.
+    itemListItemTypes: ['Product', 'Car'],
   },
   model: {
     required: ['WebSite', 'BreadcrumbList', 'ItemList', 'Brand', 'Model', 'FAQPage'],
@@ -206,6 +214,8 @@ export const schemaByPageType: Partial<Record<PageType | 'custom', SchemaExpecta
     // LAA-727: mismo reemplazo de schema que LAA-726, más SiteNavigationElement.
     forbiddenTypes: ['Organization'],
     forbiddenFields: ['addressCountry'],
+    // SEO-119: mismo requisito que en `home` — ver nota ahí.
+    itemListItemTypes: ['Product', 'Car'],
   },
   details: {
     required: ['Brand', 'Model', 'VehicleModelDate', 'Price'],
@@ -260,3 +270,82 @@ export const continueSearchSectionPathsByCountry: Partial<Record<Country, string
 };
 
 export const continueSearchSectionPaths = continueSearchSectionPathsByCountry[country] ?? [];
+
+/**
+ * SEO-136: en Ecuador el <html lang> debe ser "es-EC" en vez del genérico
+ * "es". Solo se define para EC porque es el único país con este ticket.
+ */
+export const expectedHtmlLangByCountry: Partial<Record<Country, string>> = {
+  EC: 'es-EC',
+};
+
+export const expectedHtmlLang = expectedHtmlLangByCountry[country];
+
+/**
+ * SEO-137: el Local Schema (bloque Organization/AutomotiveBusiness) de EC
+ * debe incluir priceRange ($$-$$$) y una dirección de Ecuador — hoy ausentes.
+ */
+export const localSchemaFieldsByCountry: Partial<Record<Country, string[]>> = {
+  EC: ['priceRange', 'address'],
+};
+
+export const localSchemaFields = localSchemaFieldsByCountry[country] ?? [];
+
+/**
+ * SEO-129: rutas de cuenta de usuario (publicar vehículo, tablero, favoritos)
+ * enlazadas desde la home de EC que hoy devuelven 401 para visitantes
+ * anónimos. El fix las redirige a una landing en vez de mostrar el error —
+ * este test verifica que ya no devuelvan 401.
+ */
+export const knownBrokenLinksByCountry: Partial<Record<Country, string[]>> = {
+  EC: [
+    '/particulares/vehiculos/publicar/_/seleccionar-plan',
+    '/particulares/vehiculos/publicar/_/informacion-y-precio?reset=true',
+    '/particulares/tablero',
+    '/particulares/favoritos',
+  ],
+};
+
+export const knownBrokenLinks = knownBrokenLinksByCountry[country] ?? [];
+
+/** SEO-125: Referrer-Policy header esperado en la home. */
+export const expectedReferrerPolicyByCountry: Partial<Record<Country, string>> = {
+  EC: 'strict-origin-when-cross-origin',
+};
+
+export const expectedReferrerPolicy = expectedReferrerPolicyByCountry[country];
+
+/** SEO-128: X-Content-Type-Options header esperado en la home. */
+export const expectedXContentTypeOptionsByCountry: Partial<Record<Country, string>> = {
+  EC: 'nosniff',
+};
+
+export const expectedXContentTypeOptions = expectedXContentTypeOptionsByCountry[country];
+
+/**
+ * SEO-130: Content-Security-Policy en la home. El ticket acepta como fase
+ * inicial la variante `Content-Security-Policy-Report-Only`, por eso el check
+ * acepta cualquiera de los dos headers en vez de exigir solo el definitivo.
+ */
+export const requireContentSecurityPolicyByCountry: Partial<Record<Country, boolean>> = {
+  EC: true,
+};
+
+export const requireContentSecurityPolicy = requireContentSecurityPolicyByCountry[country] ?? false;
+
+/** SEO-135: Open Graph / Twitter Card tags requeridos en la home. */
+export const ogTwitterRequiredByCountry: Partial<Record<Country, string[]>> = {
+  EC: ['og:title', 'og:description', 'og:url', 'og:type', 'og:image', 'twitter:card', 'twitter:title', 'twitter:description'],
+};
+
+export const ogTwitterRequired = ogTwitterRequiredByCountry[country] ?? [];
+
+/**
+ * SEO-132: banners de la home cuyo alt text debe existir y ser descriptivo
+ * (no vacío). Identificados por patrón de filename ya que el contenido rota.
+ */
+export const bannerImageFilenamePatternByCountry: Partial<Record<Country, RegExp>> = {
+  EC: /portada-/,
+};
+
+export const bannerImageFilenamePattern = bannerImageFilenamePatternByCountry[country];

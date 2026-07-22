@@ -6,6 +6,14 @@ import {
   schemaByPageType,
   ownCountryHostname,
   otherCountryHostnames,
+  country,
+  expectedHtmlLang,
+  localSchemaFields,
+  expectedReferrerPolicy,
+  expectedXContentTypeOptions,
+  requireContentSecurityPolicy,
+  ogTwitterRequired,
+  bannerImageFilenamePattern,
 } from './config';
 
 /** Concatena el contenido de todos los bloques JSON-LD (para buscar campos/strings). */
@@ -57,6 +65,24 @@ function getTopLevelBlocksByType(html: string, types: string[]): Record<string, 
   });
 }
 
+/**
+ * SEO-119: devuelve los @type anidados dentro de itemListElement[].item de
+ * los bloques ItemList (no son de nivel superior, así que getTopLevelTypes
+ * no los detecta).
+ */
+function getItemListItemTypes(html: string): string[] {
+  const blocks = getTopLevelBlocksByType(html, ['ItemList']);
+  return blocks.flatMap((block) => {
+    const elements = (block['itemListElement'] as Array<Record<string, unknown>>) ?? [];
+    return elements.flatMap((el) => {
+      const item = el?.['item'] as Record<string, unknown> | undefined;
+      if (!item) return [];
+      const t = item['@type'];
+      return Array.isArray(t) ? (t as string[]) : t ? [t as string] : [];
+    });
+  });
+}
+
 const productionHostname = new URL(productionBaseURL).hostname;
 
 /**
@@ -92,7 +118,9 @@ for (const { path, type } of pagesToTest) {
   test.describe(`[${type}] ${path}`, () => {
     let html = '';       // DOM renderizado por el browser (request.get() es bloqueado por Cloudflare)
     let domHtml = '';    // Alias de html — mismo contenido, para checks de schema JS-inyectado
+    let rawHtml = '';    // Body crudo de la respuesta del documento, ANTES de que corra JS (SEO-138/SEO-114)
     let statusCode = 0;
+    let documentHeaders: Record<string, string> = {}; // Headers de la respuesta del documento (SEO-125/128/130)
 
     test.beforeAll(async ({ browser, baseURL }) => {
       // Una sola navegación con browser real para pasar el challenge de Cloudflare.
@@ -100,13 +128,23 @@ for (const { path, type } of pagesToTest) {
       // de crawler (title, meta, canonical, H1) son equivalentes al HTML crudo.
       const context = await browser.newContext({ ignoreHTTPSErrors: true });
       const page = await context.newPage();
-      // Capturar el status de la última respuesta de documento (después del challenge de Cloudflare)
+      let rawHtmlPromise: Promise<string> = Promise.resolve('');
+      // Capturar el status y el body crudo de la última respuesta de documento
+      // (después del challenge de Cloudflare, antes de que el browser ejecute JS).
+      // Filtramos por mainFrame(): algunas páginas cargan iframes ocultos que
+      // Playwright también clasifica como resourceType "document" (ej. el
+      // silent-check-sso.html de Keycloak), y su URL también empieza con
+      // baseURL — sin este filtro se termina capturando el HTML del iframe
+      // en vez de la página real.
       page.on('response', (response) => {
         if (
           response.request().resourceType() === 'document' &&
+          response.frame() === page.mainFrame() &&
           response.url().startsWith(baseURL ?? '')
         ) {
           statusCode = response.status();
+          documentHeaders = response.headers();
+          rawHtmlPromise = response.text().catch(() => '');
         }
       });
       await page.goto(`${baseURL}${path}`, { waitUntil: 'load' });
@@ -123,6 +161,7 @@ for (const { path, type } of pagesToTest) {
         .catch(() => {});
       html = await page.content();
       domHtml = html;
+      rawHtml = await rawHtmlPromise;
       await context.close();
     });
 
@@ -370,6 +409,31 @@ for (const { path, type } of pagesToTest) {
             }
           }
         });
+
+        // SEO-137: el Local Schema de EC debe incluir priceRange y dirección.
+        if (localSchemaFields.length > 0) {
+          test(`Local Schema incluye: ${localSchemaFields.join(', ')}`, () => {
+            const blocks = getTopLevelBlocksByType(domHtml, ['Organization', 'AutomotiveBusiness']);
+            expect(
+              blocks.length,
+              'No se encontró ningún bloque Organization/AutomotiveBusiness para validar',
+            ).toBeGreaterThan(0);
+            const json = JSON.stringify(blocks);
+            for (const field of localSchemaFields) {
+              expect(json, `Falta el campo "${field}" en el Local Schema`).toContain(`"${field}"`);
+            }
+          });
+        }
+      }
+
+      // SEO-119: cada item del ItemList debe tener ambos @type (ej. Product + Car), como en MX.
+      if (expectations?.itemListItemTypes && expectations.itemListItemTypes.length > 0) {
+        test(`ItemList: cada item incluye @type ${expectations.itemListItemTypes.join(' + ')}`, () => {
+          const itemTypes = getItemListItemTypes(domHtml);
+          for (const t of expectations.itemListItemTypes!) {
+            expect(itemTypes, `Falta @type "${t}" en los items del ItemList`).toContain(t);
+          }
+        });
       }
     });
 
@@ -399,6 +463,20 @@ for (const { path, type } of pagesToTest) {
           `Alt texts con valores inválidos: ${badAlts.join(', ')}`,
         ).toHaveLength(0);
       });
+
+      // SEO-132: los banners de la home deben tener alt descriptivo (no vacío).
+      if (path === '/' && bannerImageFilenamePattern) {
+        test('banners tienen alt descriptivo', () => {
+          const imgs = [...html.matchAll(/<img\s[^>]*>/gi)].map((m) => m[0]);
+          const banners = imgs.filter((img) => bannerImageFilenamePattern!.test(img));
+          expect(banners.length, 'No se encontraron imágenes de banner para validar').toBeGreaterThan(0);
+          for (const img of banners) {
+            const altMatch = img.match(/\salt=["']([^"']*)["']/i);
+            const alt = altMatch?.[1]?.trim() ?? '';
+            expect(alt, `Banner sin alt descriptivo: ${img.slice(0, 80)}...`).not.toBe('');
+          }
+        });
+      }
     });
 
     // ── J. Scripts de seguimiento ───────────────────────────────────────────
@@ -410,5 +488,88 @@ for (const { path, type } of pagesToTest) {
         );
       });
     });
+
+    // ── K. Idioma del documento ─────────────────────────────────────────────
+    // SEO-136: en EC, <html lang> debe ser "es-EC" en vez del genérico "es".
+    if (expectedHtmlLang) {
+      test.describe('K. Idioma del documento', () => {
+        test(`<html lang="${expectedHtmlLang}">`, () => {
+          const m = html.match(/<html\s[^>]*lang=["']([^"']+)["']/i);
+          expect(m, 'No se encontró el atributo lang en <html>').not.toBeNull();
+          expect(m![1], `<html lang> debería ser "${expectedHtmlLang}"`).toBe(expectedHtmlLang);
+        });
+      });
+    }
+
+    // ── L. Schema en HTML fuente (pre-JS) ───────────────────────────────────
+    // SEO-138 / SEO-114: en la home de EC el schema se inyecta 100% client-side
+    // (0 bloques en el HTML fuente, 4 en el renderizado). Debe estar presente
+    // ya en el HTML inicial, no depender solo de JavaScript.
+    if (path === '/' && country === 'EC') {
+      test.describe('L. Schema en HTML fuente (pre-JS)', () => {
+        test('el HTML fuente ya incluye bloques JSON-LD', () => {
+          const blocks = [
+            ...rawHtml.matchAll(
+              /<script\s[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi,
+            ),
+          ];
+          expect(
+            blocks.length,
+            'El HTML fuente (antes de ejecutar JS) no contiene bloques JSON-LD — el schema depende 100% de JavaScript client-side',
+          ).toBeGreaterThan(0);
+        });
+      });
+    }
+
+    // ── M. Security headers ─────────────────────────────────────────────────
+    // SEO-125/128/130: headers de seguridad validados en la home.
+    if (path === '/' && (expectedReferrerPolicy || expectedXContentTypeOptions || requireContentSecurityPolicy)) {
+      test.describe('M. Security headers', () => {
+        if (expectedReferrerPolicy) {
+          test(`Referrer-Policy: ${expectedReferrerPolicy}`, () => {
+            expect(documentHeaders['referrer-policy'], 'Falta el header Referrer-Policy').toBe(
+              expectedReferrerPolicy,
+            );
+          });
+        }
+
+        if (expectedXContentTypeOptions) {
+          test(`X-Content-Type-Options: ${expectedXContentTypeOptions}`, () => {
+            expect(
+              documentHeaders['x-content-type-options'],
+              'Falta el header X-Content-Type-Options',
+            ).toBe(expectedXContentTypeOptions);
+          });
+        }
+
+        if (requireContentSecurityPolicy) {
+          // El ticket acepta la variante Report-Only como fase inicial válida.
+          test('Content-Security-Policy presente (definitivo o Report-Only)', () => {
+            const csp = documentHeaders['content-security-policy'];
+            const cspReportOnly = documentHeaders['content-security-policy-report-only'];
+            expect(
+              csp || cspReportOnly,
+              'Falta tanto Content-Security-Policy como su variante Report-Only',
+            ).toBeTruthy();
+          });
+        }
+      });
+    }
+
+    // ── N. Open Graph / Twitter Cards ───────────────────────────────────────
+    // SEO-135: meta tags de OG/Twitter validados en la home.
+    if (path === '/' && ogTwitterRequired.length > 0) {
+      test.describe('N. Open Graph / Twitter Cards', () => {
+        test(`incluye: ${ogTwitterRequired.join(', ')}`, () => {
+          for (const tag of ogTwitterRequired) {
+            const attr = tag.startsWith('twitter:') ? 'name' : 'property';
+            const re = new RegExp(`<meta\\s[^>]*${attr}=["']${tag}["'][^>]*content=["']([^"']+)["']`, 'i');
+            const m = html.match(re);
+            expect(m, `Falta <meta ${attr}="${tag}">`).not.toBeNull();
+            expect(m![1].trim(), `<meta ${attr}="${tag}"> está vacío`).not.toBe('');
+          }
+        });
+      });
+    }
   });
 }
