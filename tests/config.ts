@@ -323,12 +323,17 @@ export const localRoutePaths = localRoutePathsByCountry[country] ?? [];
 /**
  * SEO-105/SEO-116: variantes de URL con bug conocido (guion sobrante que
  * generaba `buildSeoUrl`, o `%20` sin codificar) que deben redirigir con 301
- * en un solo hop a la ruta local limpia.
+ * en un solo hop a la ruta local limpia. SEO-149/SEO-148 son el mismo bug
+ * clonado para Patiotuerca (EC).
  */
 export const localRouteRedirectsByCountry: Partial<Record<Country, Array<{ from: string; to: string }>>> = {
   MX: [
     { from: '/usados/ciudad+de+mexico-/autos', to: '/usados/ciudad+de+mexico/autos' },
     { from: '/usados/ciudad%20de%20mexico-/autos', to: '/usados/ciudad+de+mexico/autos' },
+  ],
+  EC: [
+    { from: '/usados/pichincha-quito-/autos', to: '/usados/pichincha-quito/autos' },
+    { from: '/usados/guayas-guayaquil%20norte-/autos', to: '/usados/guayas-guayaquil+norte/autos' },
   ],
 };
 
