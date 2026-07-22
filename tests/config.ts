@@ -308,6 +308,32 @@ export const knownBrokenLinksByCountry: Partial<Record<Country, string[]>> = {
 
 export const knownBrokenLinks = knownBrokenLinksByCountry[country] ?? [];
 
+/**
+ * SEO-104/107/142/143/145: rutas de "solo ubicación" (ciudad, sin filtro de
+ * marca) que llevan contenido city-specific (tabla de precios, FAQ, agencias)
+ * validado aparte del checklist genérico porque no hay un `type` de página
+ * para ellas en `pagesByType` — mismo patrón que `modelYearPaths`/`filteredPaths`.
+ */
+export const localRoutePathsByCountry: Partial<Record<Country, string[]>> = {
+  MX: ['/usados/ciudad+de+mexico/autos'],
+};
+
+export const localRoutePaths = localRoutePathsByCountry[country] ?? [];
+
+/**
+ * SEO-105/SEO-116: variantes de URL con bug conocido (guion sobrante que
+ * generaba `buildSeoUrl`, o `%20` sin codificar) que deben redirigir con 301
+ * en un solo hop a la ruta local limpia.
+ */
+export const localRouteRedirectsByCountry: Partial<Record<Country, Array<{ from: string; to: string }>>> = {
+  MX: [
+    { from: '/usados/ciudad+de+mexico-/autos', to: '/usados/ciudad+de+mexico/autos' },
+    { from: '/usados/ciudad%20de%20mexico-/autos', to: '/usados/ciudad+de+mexico/autos' },
+  ],
+};
+
+export const localRouteRedirects = localRouteRedirectsByCountry[country] ?? [];
+
 /** SEO-125: Referrer-Policy header esperado en la home. */
 export const expectedReferrerPolicyByCountry: Partial<Record<Country, string>> = {
   EC: 'strict-origin-when-cross-origin',
