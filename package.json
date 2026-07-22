@@ -20,11 +20,18 @@
     "test:demo:brand": "TEST_TYPE=brand playwright test tests/seo-checklist.spec.ts --project=demo",
     "test:demo:model": "TEST_TYPE=model playwright test tests/seo-checklist.spec.ts --project=demo",
     "test:demo:details": "TEST_TYPE=details playwright test tests/seo-checklist.spec.ts --project=demo",
-    "report": "playwright show-report"
+    "report": "playwright show-report",
+    "audit:performance": "node scripts/lighthouse-audit.mjs",
+    "audit:performance:mx": "COUNTRY=MX node scripts/lighthouse-audit.mjs",
+    "audit:performance:ec": "COUNTRY=EC node scripts/lighthouse-audit.mjs",
+    "audit:performance:prod:mx": "COUNTRY=MX TARGET=production node scripts/lighthouse-audit.mjs",
+    "audit:performance:prod:ec": "COUNTRY=EC TARGET=production node scripts/lighthouse-audit.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.49.0",
     "@types/node": "^25.9.3",
-    "dotenv": "^16.0.0"
+    "chrome-launcher": "^1.2.1",
+    "dotenv": "^16.0.0",
+    "lighthouse": "^13.4.0"
   }
 }
