@@ -380,3 +380,36 @@ export const bannerImageFilenamePatternByCountry: Partial<Record<Country, RegExp
 };
 
 export const bannerImageFilenamePattern = bannerImageFilenamePatternByCountry[country];
+
+/**
+ * SEO-150: guías locales SEO (parque vehicular, autos más buscados, etc.) que
+ * deben mostrarse en las 8 páginas de ciudad exacta de Ecuador listadas en el
+ * doc fuente "SEO - CONTENIDOS_BRIEFS PATIOTUERCA". El match es exclusivo por
+ * ciudad — la provincia sola o un tipo de vehículo distinto a "autos" no
+ * heredan la guía (ver `localGuideNegativePaths`).
+ */
+export const localGuidePathsByCountry: Partial<Record<Country, string[]>> = {
+  EC: [
+    '/usados/pichincha-quito/autos',
+    '/usados/guayas-guayaquil/autos',
+    '/usados/azuay-cuenca/autos',
+    '/usados/tungurahua-ambato/autos',
+    '/usados/imbabura-ibarra/autos',
+    '/usados/manabi-portoviejo/autos',
+    '/usados/loja-loja/autos',
+    '/usados/manabi-manta/autos',
+  ],
+};
+
+export const localGuidePaths = localGuidePathsByCountry[country] ?? [];
+
+/**
+ * SEO-150: casos negativos — la guía NO debe aparecer en la página de solo
+ * provincia (sin ciudad) ni en un tipo de vehículo distinto a "autos" para
+ * una ciudad que sí tiene guía.
+ */
+export const localGuideNegativePathsByCountry: Partial<Record<Country, string[]>> = {
+  EC: ['/usados/pichincha/autos', '/usados/pichincha-quito/motos'],
+};
+
+export const localGuideNegativePaths = localGuideNegativePathsByCountry[country] ?? [];
